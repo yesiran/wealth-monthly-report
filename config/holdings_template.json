@@ -1,0 +1,15 @@
+{
+  "_说明": "S0 识图的结构模板：无上一期数据时，benchmarks/fx_secid/excluded 以本文件为默认值",
+  "asof": "YYYY-MM-DD",
+  "period": "YYYY-MM",
+  "accounts": {},
+  "positions": [],
+  "benchmarks": [
+    {"key": "A500", "name": "中证A500", "secid": "1.000510"},
+    {"key": "SSE", "name": "上证指数", "secid": "1.000001"},
+    {"key": "HSI", "name": "恒生指数", "secid": "100.HSI"},
+    {"key": "HSTECH", "name": "恒生科技", "secid": "124.HSTECH"}
+  ],
+  "fx_secid": "120.HKDCNYC",
+  "excluded": []
+}
