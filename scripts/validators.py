@@ -181,6 +181,17 @@ def validate_narrative(fp, returns_fp):
     for tok in TOKEN_RE.findall(blob):
         if tok not in tokens:
             issues.append(f"未知占位符 {{{{{tok}}}}}")
+    # 跨标的排名断言必须与真实权重排名一致（曾发生：两个标的同时自称「第一大持仓」）
+    cn_num = {"一": 1, "二": 2, "三": 3, "四": 4, "五": 5,
+              "六": 6, "七": 7, "八": 8, "九": 9, "十": 10}
+    ranks = {h["code"]: i + 1 for i, h in enumerate(
+        sorted(R["holdings"], key=lambda x: -x["weight_end"]))}
+    real = ranks.get(N.get("code"))
+    for m in re.findall(r"(?:第([一二三四五六七八九十])大|最大)持仓", blob):
+        claimed = cn_num.get(m, 1)  # 「最大持仓」按第1大处理
+        if real and claimed != real:
+            issues.append(f"排名断言错误: 自称第{claimed}大持仓，按期末权重实为第{real}大"
+                          f"（请改用占位符 {{{{h.{N['code']}.rank}}}} 或删除排名断言）")
     return not issues, issues
 
 

@@ -153,6 +153,21 @@ def t4_validators():
     check("narrative 坏样本被拒（未知token+缺window）",
           not ok3 and any("占位符" in i for i in issues3) and any("window" in i for i in issues3))
     os.unlink(badn)
+    # 排名断言坏样本：小仓位标的自称「第一大持仓」（曾发生：报告出现两个第一大）
+    with open(os.path.join(BASELINE, "06_narrative", "09992.json"), encoding="utf-8") as f:
+        n2 = json.load(f)
+    n2["subtitle"] = "09992.HK · 组合第一大持仓 · " + n2["subtitle"]
+    with tempfile.NamedTemporaryFile("w", suffix=".json", delete=False, encoding="utf-8") as tf:
+        json.dump(n2, tf, ensure_ascii=False)
+        badr = tf.name
+    ok4, issues4 = V.validate_narrative(badr, os.path.join(FIX, "03_returns.json"))
+    check("排名断言坏样本被拒（自称第一大实为小仓位）",
+          not ok4 and any("排名断言" in i for i in issues4), str(issues4[:2]))
+    os.unlink(badr)
+    # 正确的排名断言应放行（美团确为第一大）
+    ok5, issues5 = V.validate_narrative(os.path.join(BASELINE, "06_narrative", "03690.json"),
+                                        os.path.join(FIX, "03_returns.json"))
+    check("正确排名断言放行（美团=第一大）", ok5, str(issues5[:2]))
 
 
 # ================= T5: S6 组装回归 =================
@@ -182,6 +197,23 @@ def t6_research_fixtures():
     for fp in notes:
         ok, issues = V.validate_research(fp)
         check(f"validate_research {os.path.basename(fp)}", ok, str(issues[:2]))
+
+
+def t2b_candidates():
+    print("[T2b] 候选基金生成（确定性 + 别名命中）")
+    import s1_fetch_market as s1
+    raw = os.path.join(BASELINE, "raw")
+    if not os.path.exists(os.path.join(raw, "fundcode_search.js")):
+        check("基线含全量基金列表缓存", False, "缺 fundcode_search.js")
+        return
+    disp = "易方达国证新能源电池ETF联接发起式C"
+    c1 = s1.gen_candidates(disp, raw)
+    c2 = s1.gen_candidates(disp, raw)
+    codes1 = [c for c, _ in c1]
+    # 曾发生：东财简称「储能电池」与全称仅共享「电池」二字，set哈希顺序导致时中时不中
+    check("别名基金 021034 必在候选池", "021034" in codes1, str(codes1[:15]))
+    check("候选生成完全确定（两次调用一致）", c1 == c2)
+    check("相似度排序：021034 进入前10", "021034" in codes1[:10], str(codes1[:10]))
 
 
 def t7_planner():
@@ -269,6 +301,7 @@ def smoke():
 if __name__ == "__main__":
     t1_parsers()
     t2_fit()
+    t2b_candidates()
     t3_returns()
     t4_validators()
     t5_build()

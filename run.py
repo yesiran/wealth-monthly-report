@@ -231,9 +231,12 @@ def main():
             plan = json.load(f)
         log(f"研究规划: {len(plan)} 个任务")
 
-    # ---- S4 研究 ----
+    # ---- S4 研究（独立任务，并行执行） ----
     if "s4" in steps:
+        from concurrent.futures import ThreadPoolExecutor
+        conc = CFG.get("llm_concurrency", 4)
         code2name = {h["code"]: h["name"] for h in R["holdings"]}
+        todo = []
         for job in plan:
             live = [c for c in job["codes"] if c in code2name]
             if not live:
@@ -247,31 +250,56 @@ def main():
                      FUND_LIST="、".join(f"{code2name[c]}({c})" for c in live),
                      DOSSIER_LIST="、".join(f"dossiers/{c}.md" for c in live))
             tpl = "S4_research_stock.md" if job["kind"] == "stock" else "S4_research_theme.md"
-            llm_call(tpl, v, args, f"s4_{job['id']}")
-            if not args.dry_run:
-                if not validated(f"研究_{job['id']}", V.validate_research, note,
-                                 retry_ctx=(tpl, v, f"s4_{job['id']}"), args=args):
-                    die(f"S4 {job['id']} 研究未通过校验")
+            todo.append((job["id"], tpl, v, note))
+
+        def run_s4(item):
+            jid, tpl, v, note = item
+            llm_call(tpl, v, args, f"s4_{jid}")
+            if args.dry_run:
+                return True
+            return validated(f"研究_{jid}", V.validate_research, note,
+                             retry_ctx=(tpl, v, f"s4_{jid}"), args=args)
+
+        if todo:
+            log(f"S4 研究：{len(todo)} 个任务，{conc} 路并行 ...")
+            with ThreadPoolExecutor(max_workers=conc) as ex:
+                oks = list(ex.map(run_s4, todo))
+            if not all(oks):
+                die("S4 有研究任务未通过校验（详见上方日志）")
         log("✓ S4 研究完成")
 
-    # ---- S5 叙事 ----
+    # ---- S5 叙事（各标的独立，并行执行；总览在其后） ----
     if "s5" in steps:
+        from concurrent.futures import ThreadPoolExecutor
+        conc = CFG.get("llm_concurrency", 4)
         code2job = {}
         for job in plan:
             for c in job["codes"]:
                 code2job[c] = job["id"]
+        todo = []
         for h in R["holdings"]:
             out = fp(f"06_narrative/{h['code']}.json")
             if os.path.exists(out) and not args.force:
                 continue
             v = dict(common, NAME=h["name"], CODE=h["code"],
                      RESEARCH_ID=code2job.get(h["code"], h["code"]))
-            llm_call("S5_write_narrative.md", v, args, f"s5_{h['code']}")
-            if not args.dry_run:
-                if not validated(f"narrative {h['code']}", V.validate_narrative,
-                                 out, fp("03_returns.json"),
-                                 retry_ctx=("S5_write_narrative.md", v, f"s5_{h['code']}"), args=args):
-                    die(f"S5 {h['code']} 叙事未通过校验")
+            todo.append((h["code"], v, out))
+
+        def run_s5(item):
+            code, v, out = item
+            llm_call("S5_write_narrative.md", v, args, f"s5_{code}")
+            if args.dry_run:
+                return True
+            return validated(f"narrative {code}", V.validate_narrative,
+                             out, fp("03_returns.json"),
+                             retry_ctx=("S5_write_narrative.md", v, f"s5_{code}"), args=args)
+
+        if todo:
+            log(f"S5 叙事：{len(todo)} 个标的，{conc} 路并行 ...")
+            with ThreadPoolExecutor(max_workers=conc) as ex:
+                oks = list(ex.map(run_s5, todo))
+            if not all(oks):
+                die("S5 有叙事未通过校验（详见上方日志）")
         if not (os.path.exists(fp("06_narrative/overview.json")) and not args.force):
             llm_call("S5_write_overview.md", common, args, "s5_overview")
             if not args.dry_run:

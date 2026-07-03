@@ -51,9 +51,12 @@ def build_token_table(R):
     for k, b in R["benchmarks"].items():
         T[f"bench.{k}"] = pct(b["ret"])
         T[f"bench.{k}.name"] = b["name"]
+    ranks = {h["code"]: i + 1 for i, h in enumerate(
+        sorted(R["holdings"], key=lambda x: -x["weight_end"]))}
     for h in R["holdings"]:
         c = h["code"]
         T[f"h.{c}.name"] = h["name"]
+        T[f"h.{c}.rank"] = f"第{ranks[c]}大"
         T[f"h.{c}.ret_m"] = pct(h["ret_m"])
         T[f"h.{c}.pnl_m"] = thou(h["pnl_m"])
         T[f"h.{c}.ccy"] = h["ccy"]

@@ -27,7 +27,16 @@ def name_tokens(disp):
     return comp, core
 
 
+def _bigrams(s):
+    return {s[i:i + 2] for i in range(len(s) - 1)}
+
+
 def gen_candidates(disp, cache_dir):
+    """候选基金生成。两条铁律：
+    1. 完全确定性——子串按(长度降序,出现位置)排序，杜绝 set 哈希顺序抽签（曾导致
+       「储能电池」类别名只能靠『电池』子串命中、时中时不中的非确定性漏配）；
+    2. 不靠截断碰运气——先收大池子(≤150)，再按与截图名称的 2-gram 相似度排序取前 40，
+       与 display 最像的候选必然优先参与拟合。"""
     comp, core = name_tokens(disp)
     seen, cands = set(), []
 
@@ -42,15 +51,18 @@ def gen_candidates(disp, cache_dir):
             add(fund_search(key, cache_dir=cache_dir))
         except Exception as e:
             log.debug(f"搜索[{key}]失败: {e}")
-    subs = {core[i:i + L] for L in (4, 3, 2) for i in range(len(core) - L + 1)}
-    for sub in sorted(subs, key=len, reverse=True)[:12]:
+    subs = sorted({core[i:i + L] for L in (4, 3, 2) for i in range(len(core) - L + 1)},
+                  key=lambda s: (-len(s), core.find(s)))
+    for sub in subs:
         try:
             add(fundlist_grep([comp, sub], cache_dir))
         except Exception as e:
             log.debug(f"列表grep[{comp}+{sub}]失败: {e}")
-        if len(cands) >= 40:
+        if len(cands) >= 150:
             break
-    log.debug(f"候选基金 {disp}: {len(cands)} 个 -> {cands[:10]}")
+    bg = _bigrams(disp)
+    cands.sort(key=lambda cn: (-len(_bigrams(cn[1]) & bg), cn[0]))
+    log.debug(f"候选基金 {disp}: 池 {len(cands)} 个, 相似度前10 -> {cands[:10]}")
     return cands[:40]
 
 

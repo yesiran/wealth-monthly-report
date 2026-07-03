@@ -2,6 +2,7 @@
   "model": "claude-opus-4-8",
   "permission_mode": "acceptEdits",
   "llm_timeout_sec": 1800,
+  "llm_concurrency": 4,
   "puppeteer_node_path": "/Users/xiesiran/.claude/skills/wealth-image/node_modules",
   "checkpoints": ["s0", "s7"]
 }
