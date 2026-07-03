@@ -325,9 +325,11 @@ def main():
 
     # ---- S7 质检 ----
     if "s7" in steps:
+        qfp = fp("05_notes/qa_report.json")
+        if os.path.exists(qfp) and not args.dry_run:
+            os.remove(qfp)  # 清掉上一轮的质检报告，防止本轮 LLM 未产出时误读旧结论
         llm_call("S7_qa_visual.md", common, args, "s7")
         if not args.dry_run:
-            qfp = fp("05_notes/qa_report.json")
             if os.path.exists(qfp):
                 with open(qfp, encoding="utf-8") as f:
                     qa = json.load(f)
